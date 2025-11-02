@@ -2,8 +2,10 @@ import streamlit as st
 
 import sqlite3
 
+from filters import *
 
-# --- consts ---
+
+#%% --- consts ---
 OPTIONS_BUSCA = [
     'Nome 🔤',
     'Lugar 🗺️',
@@ -20,21 +22,13 @@ OPTIONS_TO_SQL = {
     'Serviços 🥤': 'FacilitiesAndServices',
 }
 
-AWARDS = {
-    '3 Stars': '⭐⭐⭐',
-    'Selected Restaurants': 'Selected Restaurants',
-    '1 Star': '⭐',
-    '2 Stars': '⭐⭐',
-    'Bib Gourmand': 'Bib Gourmand (value-for-money award)',
-}
 
-
-# --- header ---
+#%% --- header ---
 st.set_page_config(page_title='Guia não oficial Michelin', layout="wide")
 st.image('indian-food.jpg', use_container_width=True)
 st.title('Guia não oficial Michelin')
 
-# --- sql connection ---
+#%% --- sql connection ---
 # @st.cache_resource  # não pode compartilhar conexão entre threads
 def connect(ref):
     conn = sqlite3.connect(ref)
@@ -43,24 +37,48 @@ def connect(ref):
 sql_conn, sql_cursor = connect('michelin.db')
 
 
-# --- search bar ---
+#%% --- search bar ---
 with st.form('form_busca'):
     with st.container(horizontal=True, vertical_alignment='bottom'):
         input_string = st.text_input(label='Pesquise restaurantes:', width=500, placeholder='Buscar...')
-        st.form_submit_button(label='', help='Submeter', icon='🔍')
+        st.form_submit_button(label='', help='Submeter', icon='🔍', type='primary')
 
-    with st.container(horizontal=True, vertical_alignment='bottom'):
-        search_type = st.segmented_control(
-            label='Busca por... ', options=OPTIONS_BUSCA, selection_mode='single', default=OPTIONS_BUSCA[0]
-        )
-        if search_type is None:
-            search_type = OPTIONS_BUSCA[0]
-
-        st.write('filtros...') # green star; award; pais (like)
-        # st.multiselect('Filtros', OPTIONS_BUSCA, default=OPTIONS_BUSCA)
+    search_type = st.segmented_control(
+        label='Busca por... ', options=OPTIONS_BUSCA, selection_mode='single', default=OPTIONS_BUSCA[0]
+    )
+    if search_type is None:
+        search_type = OPTIONS_BUSCA[0]
 
 
-# --- page size bar ---
+#%% --- side bar ---
+global_filters = []
+
+def display_filter(_filter_name):
+    with st.container():
+
+        if _filter_name == 'Green Star 💚':
+            st.text('Possui Green Star')
+            return GreenStarFilter()
+        if _filter_name == 'Premiação 🏆':
+            return AwardFilter(st.selectbox('Foi avaliado como:', AWARDS, default=AWARDS))
+        # if _filter_name == 'Preço 💰':
+        #     return PriceFilter(st.select_slider('Preço menor ou igual a:'), ['$', '$$', '$$$', '$$$$'])
+        if _filter_name == 'Lugar 🗺️':
+            return LocationFilter(st.text_input('É da região de:'))
+        if _filter_name == 'Cozinha 🧑‍🍳':
+            return CuisineFiler(st.text_input('Possui cozinha:'))
+        if _filter_name == 'Serviços 🥤':
+            return ServicesFilter(st.text_input('Possui serviços de:'))
+        return None  # should not happen
+
+with st.sidebar:
+    selected_filters = st.multiselect('Filtros', FILTERS)
+    with st.container():
+        for filter_name in selected_filters:
+            global_filters.append(display_filter(filter_name))
+
+
+#%% --- page size bar ---
 LIST_LIMITS = [5, 10, 20, 50, 100]
 with st.container(horizontal=True, vertical_alignment='bottom'):
     list_limit = st.segmented_control(
@@ -77,7 +95,7 @@ with st.container(horizontal=True, vertical_alignment='bottom'):
     if list_page_offset is None:
         list_page_offset = 0
 
-# --- actual query ---
+#%% --- actual query ---
 # README: SQLite3 safe string interpolation (with `?`) automatically adds quotes.
 # this is a problem when you need to interpolate a column (or table) name.
 # In this case, we will be using python unsafe interpolation (the names are preselected,
@@ -94,10 +112,8 @@ selection_list = sql_cursor.execute(
     )
 ).fetchall()
 
-st.write(OPTIONS_TO_SQL[search_type])
 
-
-# --- display results ---
+#%% --- display results ---
 def display_restaurant(restaurants_row: tuple):
     values = {
         'Name': restaurants_row[0],
@@ -151,7 +167,7 @@ def display_restaurant(restaurants_row: tuple):
 **Website:** [{values['WebsiteUrl']}]({values['WebsiteUrl']})\n
 **Telefone:** [{values['PhoneNumber']}]({values['PhoneNumber']})\n
 ''')
-        st.link_button('Ver no Guia Michelin', values['Url'])
+        st.link_button('Ver no Guia Michelin', values['Url'], type='primary')
 
 st.header('Restaurantes encontrados:')
 if selection_list:
