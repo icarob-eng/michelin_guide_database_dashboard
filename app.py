@@ -6,11 +6,19 @@ import sqlite3
 # --- consts ---
 OPTIONS_BUSCA = [
     'Nome 🔤',
-    'País 🗺️',
-    'Lugar 📍️',
+    'Lugar 🗺️',
+    'Endereço 📍️',
     'Cozinha 🧑‍🍳',
     'Serviços 🥤'
 ]
+
+OPTIONS_TO_SQL = {
+    'Nome 🔤': 'Name',
+    'Lugar 🗺️': 'Location',
+    'Endereço 📍️': 'Address',
+    'Cozinha 🧑‍🍳': 'Cuisine',
+    'Serviços 🥤': 'FacilitiesAndServices',
+}
 
 AWARDS = {
     '3 Stars': '⭐⭐⭐',
@@ -38,39 +46,55 @@ sql_conn, sql_cursor = connect('michelin.db')
 # --- search bar ---
 with st.form('form_busca'):
     with st.container(horizontal=True, vertical_alignment='bottom'):
-        st.text_input(label='Buscar...', width=500)
+        input_string = st.text_input(label='Pesquise restaurantes:', width=500, placeholder='Buscar...')
         st.form_submit_button(label='', help='Submeter', icon='🔍')
 
     with st.container(horizontal=True, vertical_alignment='bottom'):
-        st.segmented_control(label='Por... ', options=OPTIONS_BUSCA, selection_mode='single', default=OPTIONS_BUSCA[0])
+        search_type = st.segmented_control(
+            label='Busca por... ', options=OPTIONS_BUSCA, selection_mode='single', default=OPTIONS_BUSCA[0]
+        )
+        if search_type is None:
+            search_type = OPTIONS_BUSCA[0]
+
         st.write('filtros...') # green star; award; pais (like)
         # st.multiselect('Filtros', OPTIONS_BUSCA, default=OPTIONS_BUSCA)
 
 
 # --- page size bar ---
 LIST_LIMITS = [5, 10, 20, 50, 100]
-if 'list_limit' not in st.session_state:  # assert value
-    st.session_state.list_limit = LIST_LIMITS[0]
-list_limit = st.segmented_control(
-    label='Número de resultados',
-    options=LIST_LIMITS,
-    selection_mode='single',
-    default=st.session_state.list_limit,
-    key='list_limit_selector',
-)
-if list_limit is None:
-    st.session_state.list_limit = LIST_LIMITS[0]
-    list_limit = st.session_state.list_limit
-else:
-    st.session_state.list_limit = list_limit
+with st.container(horizontal=True, vertical_alignment='bottom'):
+    list_limit = st.segmented_control(
+        label='Número de resultados',
+        options=LIST_LIMITS,
+        selection_mode='single',
+        default=LIST_LIMITS[0],
+        key='list_limit_selector',
+    )
+    if list_limit is None:
+        list_limit = LIST_LIMITS[0]
 
-list_page_offset = st.number_input(f'Página atual:', min_value=0, )
-
+    list_page_offset = st.number_input(f'Página atual:', min_value=0, step=1, width=100)
+    if list_page_offset is None:
+        list_page_offset = 0
 
 # --- actual query ---
-selection_list = sql_cursor.execute(f"""
-SELECT * FROM restaurants
-LIMIT {list_limit} OFFSET {list_page_offset*list_limit}""").fetchall()
+# README: SQLite3 safe string interpolation (with `?`) automatically adds quotes.
+# this is a problem when you need to interpolate a column (or table) name.
+# In this case, we will be using python unsafe interpolation (the names are preselected,
+# so it is safe).
+selection_list = sql_cursor.execute(
+    f"""SELECT * FROM restaurants WHERE
+    {OPTIONS_TO_SQL[search_type]} LIKE ?
+    COLLATE NOCASE
+    LIMIT ? OFFSET ?;""",
+    (
+        f"%{input_string}%",
+        list_limit,
+        list_page_offset*list_limit
+    )
+).fetchall()
+
+st.write(OPTIONS_TO_SQL[search_type])
 
 
 # --- display results ---
@@ -130,7 +154,9 @@ def display_restaurant(restaurants_row: tuple):
         st.link_button('Ver no Guia Michelin', values['Url'])
 
 st.header('Restaurantes encontrados:')
-for row in selection_list:
-    display_restaurant(row)
+if selection_list:
+    for row in selection_list:
+        display_restaurant(row)
 else:
-    st.header('Nenhum restaurante encontrado com as características desejadas :(.\nTente remover alguns filtros.')
+    st.header('Nenhum restaurante encontrado com as características desejadas :('
+              '\nTente remover alguns filtros ou voltar para a página 0.')
