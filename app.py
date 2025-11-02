@@ -24,9 +24,9 @@ OPTIONS_TO_SQL = {
 
 
 #%% --- header ---
-st.set_page_config(page_title='Guia não oficial Michelin', layout="wide")
+st.set_page_config(page_title='Guia Michelin não oficial', layout="wide")
 st.image('indian-food.jpg', use_container_width=True)
-st.title('Guia não oficial Michelin')
+st.title('Guia Michelin não oficial')
 
 #%% --- sql connection ---
 # @st.cache_resource  # não pode compartilhar conexão entre threads
@@ -51,7 +51,7 @@ with st.form('form_busca'):
 
 
 #%% --- side bar ---
-global_filters = []
+global_filters: list[Filter] = []
 
 def display_filter(_filter_name):
     with st.container():
@@ -60,7 +60,7 @@ def display_filter(_filter_name):
             st.text('Possui Green Star')
             return GreenStarFilter()
         if _filter_name == 'Premiação 🏆':
-            return AwardFilter(st.selectbox('Foi avaliado como:', AWARDS, default=AWARDS))
+            return AwardFilter(st.selectbox('Foi avaliado como:', ['1 Star', '2 Stars', '3 Stars', 'Selected Restaurants', 'Bib Gourmand']))
         # if _filter_name == 'Preço 💰':
         #     return PriceFilter(st.select_slider('Preço menor ou igual a:'), ['$', '$$', '$$$', '$$$$'])
         if _filter_name == 'Lugar 🗺️':
@@ -100,16 +100,20 @@ with st.container(horizontal=True, vertical_alignment='bottom'):
 # this is a problem when you need to interpolate a column (or table) name.
 # In this case, we will be using python unsafe interpolation (the names are preselected,
 # so it is safe).
+base_query = f"""SELECT * FROM restaurants WHERE
+    {OPTIONS_TO_SQL[search_type]} LIKE ?\n"""
+base_params = [f"%{input_string}%"]
+
+for f in global_filters:
+    base_query += f.get_query_line()[0]
+    base_params += f.get_query_line()[1]
+
+end_query = 'COLLATE NOCASE LIMIT ? OFFSET ?;'
+end_params = [list_limit, list_page_offset*list_limit]
+
 selection_list = sql_cursor.execute(
-    f"""SELECT * FROM restaurants WHERE
-    {OPTIONS_TO_SQL[search_type]} LIKE ?
-    COLLATE NOCASE
-    LIMIT ? OFFSET ?;""",
-    (
-        f"%{input_string}%",
-        list_limit,
-        list_page_offset*list_limit
-    )
+    base_query + end_query,
+    base_params + end_params,
 ).fetchall()
 
 
@@ -149,7 +153,7 @@ def display_restaurant(restaurants_row: tuple):
             st.subheader(values['Name'])
             st.text(values['Location'])
 
-        col_award, col_price, col_details = st.columns([30, 20, 50])
+        col_award, col_price, col_details = st.columns([40, 20, 40])
         with col_award:
             st.metric('Premiação:', AWARDS[values['Award']], border=True)
         with col_price:
