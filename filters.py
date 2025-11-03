@@ -34,14 +34,14 @@ class AwardFilter(Filter):
         self.award = award
 
     def get_query_line(self) -> tuple[str, list]:
-        return f"AND Award = '{self.award}'\n", []
+        return f"AND Award = ?\n", [self.award]
 
 class PriceFilter(Filter):
     def __init__(self, price: int):
         self.price = price
 
     def get_query_line(self) -> tuple[str, list]:
-        return f'AND LENGTH(Price) <= {self.price}\n', []
+        return f'AND LENGTH(Price) <= ?\n', [self.price]
 
 class LocationFilter(Filter):
     def __init__(self, location: str):

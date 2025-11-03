@@ -25,7 +25,7 @@ OPTIONS_TO_SQL = {
 
 #%% --- header ---
 st.set_page_config(page_title='Guia Michelin não oficial', layout="wide")
-st.image('indian-food.jpg', use_container_width=True)
+st.image('indian-food.jpg', width='stretch')
 st.title('Guia Michelin não oficial')
 
 #%% --- sql connection ---
