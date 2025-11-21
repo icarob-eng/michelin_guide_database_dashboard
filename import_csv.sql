@@ -16,4 +16,4 @@ CREATE TABLE restaurants (
     PRIMARY KEY (Name, Address)
 );
 
-.import --mode csv --skip 1 michelin_my_maps.csv restaurants
+.import --csv --skip 1 michelin_my_maps.csv restaurants
